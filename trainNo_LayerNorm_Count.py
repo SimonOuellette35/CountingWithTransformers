@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import tasks.counting_tasks as tasks
 import utils.transformer_utils as utils
-from models.LayerNorm_SAV2_Count import TransformerEncoder, TransformerEncoderLayer
+from models.No_LayerNorm_Count import TransformerEncoder, TransformerEncoderLayer
 import torch.optim as optim
 import matplotlib.pyplot as plt
 
@@ -17,12 +17,10 @@ TRAIN_MODEL = False
 
 GRID_DIM = 7
 
-#source_vocab_size = 1  # dimensionality of each source token
-#hidden_dim = 10
 num_epochs = 100000
 test_batch_size = 1000
 device = 'cuda'
-LR = 0.00002     # then 0.0001 for the next 100k, then 0.00002 for the next 100k.
+LR = 0.0002
 num_heads = 1
 train_batch_size = 50
 
@@ -89,7 +87,7 @@ enc_layer = TransformerEncoderLayer(d_model=EMB_DIM, nhead=num_heads, batch_firs
 model = TransformerEncoder(enc_layer, num_layers=1).to(device).double()
 
 if RESUME_MODEL:
-    model.load_state_dict(torch.load('LayerNorm-SAV2-Count.pt'))
+    model.load_state_dict(torch.load('No-LayerNorm-Count.pt'))
     model = model.double().to(device)
     model.train()
 else:
@@ -164,10 +162,10 @@ if TRAIN_MODEL:
             if mean_loss < best_loss:
                 best_loss = mean_loss
                 print("==> Saving new best model!")
-                torch.save(model.state_dict(), 'LayerNorm-SAV2-Count.pt')
+                torch.save(model.state_dict(), 'No-LayerNorm-Count.pt')
 
 else:
-    model.load_state_dict(torch.load('LayerNorm-SAV2-Count.pt'))
+    model.load_state_dict(torch.load('No-LayerNorm-Count.pt'))
     model = model.double().to(device)
 
 model.eval()

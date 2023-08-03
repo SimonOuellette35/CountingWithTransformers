@@ -3,9 +3,10 @@ import torch.nn as nn
 import numpy as np
 import tasks.counting_tasks as tasks
 import utils.transformer_utils as utils
-from models.LayerNorm_SAV2_Count import TransformerEncoder, TransformerEncoderLayer
+from models.LayerNorm_FF_Count import TransformerEncoder, TransformerEncoderLayer
 import torch.optim as optim
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Inputs: (flattened) grids with randomized pixel colors.
 # Outputs: [<color token>, <count value>, <color token>, <count value>, etc. (for all non-zeros pixel colors other than background color)]
@@ -17,12 +18,10 @@ TRAIN_MODEL = False
 
 GRID_DIM = 7
 
-#source_vocab_size = 1  # dimensionality of each source token
-#hidden_dim = 10
 num_epochs = 100000
 test_batch_size = 1000
 device = 'cuda'
-LR = 0.00002     # then 0.0001 for the next 100k, then 0.00002 for the next 100k.
+LR = 0.0001     # then 0.0001 for the next 100k, then 0.00002 for the next 100k.
 num_heads = 1
 train_batch_size = 50
 
@@ -89,7 +88,7 @@ enc_layer = TransformerEncoderLayer(d_model=EMB_DIM, nhead=num_heads, batch_firs
 model = TransformerEncoder(enc_layer, num_layers=1).to(device).double()
 
 if RESUME_MODEL:
-    model.load_state_dict(torch.load('LayerNorm-SAV2-Count.pt'))
+    model.load_state_dict(torch.load('LayerNorm-FF-Count.pt'))
     model = model.double().to(device)
     model.train()
 else:
@@ -164,17 +163,17 @@ if TRAIN_MODEL:
             if mean_loss < best_loss:
                 best_loss = mean_loss
                 print("==> Saving new best model!")
-                torch.save(model.state_dict(), 'LayerNorm-SAV2-Count.pt')
+                torch.save(model.state_dict(), 'LayerNorm-FF-Count.pt')
 
 else:
-    model.load_state_dict(torch.load('LayerNorm-SAV2-Count.pt'))
+    model.load_state_dict(torch.load('LayerNorm-FF-Count.pt'))
     model = model.double().to(device)
 
 model.eval()
 
 print("Evaluating...")
 
-TEST_GRID_DIM = 20
+TEST_GRID_DIM = 12
 task_instance = current_task[0][0](grid_dim_min=TEST_GRID_DIM, grid_dim_max=TEST_GRID_DIM, num_px_max=1000)
 data_generator = utils.UTTaskDataGenerator(task_instance, input_grid_dim=TEST_GRID_DIM, output_grid_dim=3)
 
@@ -223,6 +222,7 @@ with torch.no_grad():
         print("=================================================================================================")
         print("source = ", source[b_idx].cpu().data.numpy())
         print("count per color = ", getCountPerColor(source[b_idx].cpu().data.numpy()))
+        #preds, tmp_stdevs = model(source_elem)
         preds = model(source_elem)
 
         num_preds = np.round(np.max(preds[0].cpu().data.numpy(), axis=-1))
@@ -230,9 +230,8 @@ with torch.no_grad():
 
         num_tgts = np.round(np.max(target[b_idx].cpu().data.numpy(), axis=-1))
         print("Count targets = ", num_tgts)
-        #print("Predictions = ", preds[0].cpu().data.numpy())
 
-        # for cell_idx, s in enumerate(tmp_x_std):
+        # for cell_idx, s in enumerate(tmp_stdevs[0]):
         #     current_preds = np.round(preds[0, cell_idx].cpu().data.numpy())
         #     if np.all(current_preds == target[b_idx, cell_idx].cpu().data.numpy()):
         #         success_std_preds.append(s)
@@ -247,22 +246,26 @@ with torch.no_grad():
             count_val = np.max(cell_pred)
             count_preds.append(count_val)
 
-    # TODO: use seaborn, improve the histograms
-    # TODO: filter out the zero count in the histograms
+    sns.set(font_scale=1.5)
     fig, (ax1, ax2) = plt.subplots(1, 2)
-    ax1.hist(count_preds)
+
+    sns.histplot(ax=ax1, data=count_preds, binwidth=1, stat="density")
     ax1.set_title("Distribution of predicted count values")
 
-    ax2.hist(count_targets)
+    sns.histplot(ax=ax2, data=count_targets, binwidth=1, stat="density")
     ax2.set_title("Distribution of ground truth count values")
     plt.show()
 
-    fig, (ax1, ax2) = plt.subplots(1, 2)
-    ax1.hist(success_std_preds)
-    ax1.set_title("Distribution of stdev for successful preds")
-
-    ax2.hist(failure_std_preds)
-    ax2.set_title("Distribution of stdev for failure cases")
-    plt.show()
+    # fig, (ax1, ax2) = plt.subplots(1, 2)
+    #
+    # print("mean success stdev = ", np.mean(success_std_preds))
+    # print("mean failure stdev = ", np.mean(failure_std_preds))
+    #
+    # sns.histplot(ax=ax1, data=success_std_preds, stat="density")
+    # ax1.set_title("Distribution of stdev for successful preds")
+    #
+    # sns.histplot(ax=ax2, data=failure_std_preds, stat="density")
+    # ax2.set_title("Distribution of stdev for failure cases")
+    # plt.show()
 
 print("Mean accuracy = ", np.mean(accuracies))

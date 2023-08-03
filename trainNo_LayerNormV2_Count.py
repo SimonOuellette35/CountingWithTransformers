@@ -174,7 +174,7 @@ model.eval()
 
 print("Evaluating...")
 
-TEST_GRID_DIM = 7
+TEST_GRID_DIM = 20
 task_instance = current_task[0][0](grid_dim_min=TEST_GRID_DIM, grid_dim_max=TEST_GRID_DIM, num_px_max=1000)
 data_generator = utils.UTTaskDataGenerator(task_instance, input_grid_dim=TEST_GRID_DIM, output_grid_dim=3)
 

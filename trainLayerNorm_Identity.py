@@ -1,11 +1,8 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import tasks.cardinality.counting_tasks as tasks
-import utils.transformer_utils as utils
 from solvers.models.FFLayerNorm import FFLayerNorm
 import torch.optim as optim
-import matplotlib.pyplot as plt
 
 # TODO: NOTE: with the residual connection, it worked and generalized to "infinity"... that's because all it had to
 #  learn was the null model -- which is easy to obtain with layer norm (all zeros).
@@ -72,6 +69,7 @@ if TRAIN_MODEL:
         preds = model(source.double())
         loss = criterion(preds.double(), target.to(device).double())
 
+        optimizer.zero_grad()
         loss.backward()
 
         torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
