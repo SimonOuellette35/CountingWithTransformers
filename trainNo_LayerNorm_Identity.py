@@ -1,22 +1,13 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from solvers.models.FFLayerNorm import FFLayerNorm
+from models.FFNoLayerNorm import FFNoLayerNorm
 import torch.optim as optim
-
-# TODO: NOTE: with the residual connection, it worked and generalized to "infinity"... that's because all it had to
-#  learn was the null model -- which is easy to obtain with layer norm (all zeros).
-#  Does it mean that my other LayerNorm experiments weren't valid because they weren't using the residual connections???
-
-# TODO: try trainLayerNorm_FF_Count with a residual connection instead...
-
-# Inputs: (flattened) grids with randomized pixel colors.
-# Outputs: [<color token>, <count value>, <color token>, <count value>, etc. (for all non-zeros pixel colors other than background color)]
 
 np.set_printoptions(suppress=True)
 
-RESUME_MODEL = True
-TRAIN_MODEL = True
+RESUME_MODEL = False
+TRAIN_MODEL = False
 
 train_batch_size = 200
 source_vocab_size = 1  # dimensionality of each source token
@@ -27,16 +18,16 @@ device = 'cuda'
 LR = 0.0001
 num_heads = 1
 d_feedforward = 10
-EMB_DIM=5
+EMB_DIM = 5
 
 def init_weights(m):
     for name, param in m.named_parameters():
         nn.init.uniform_(param.data, -0.08, 0.08)
 
-model = FFLayerNorm(EMB_DIM, batch_first=True).to(device).double()
+model = FFNoLayerNorm(EMB_DIM, batch_first=True).to(device).double()
 
 if RESUME_MODEL:
-    model.load_state_dict(torch.load('Identity-model-no-layernormV2.pt'))
+    model.load_state_dict(torch.load('Identity-model-no-layernorm.pt'))
     model = model.double().to(device)
     model.train()
 else:
@@ -84,7 +75,7 @@ if TRAIN_MODEL:
             test_preds = model(test_source.double())
             test_loss = criterion(test_preds.double(), test_target.double())
 
-        print("Epoch: %i, loss = %.6f (test loss = %.6f)" % (epoch, loss, test_loss))
+        print("Epoch: %i, loss = %.10f (test loss = %.6f)" % (epoch, loss, test_loss))
 
         train_losses.append(loss.cpu().data.numpy())
         if len(train_losses) >= 25:
@@ -92,8 +83,8 @@ if TRAIN_MODEL:
             if mean_loss < best_loss:
                 best_loss = mean_loss
                 print("==> Saving new best model!")
-                torch.save(model.state_dict(), 'Identity-model-no-layernormV2.pt')
+                torch.save(model.state_dict(), 'Identity-model-no-layernorm.pt')
 
 else:
-    model.load_state_dict(torch.load('Identity-model-no-layernormV2.pt'))
+    model.load_state_dict(torch.load('Identity-model-no-layernorm.pt'))
     model = model.double().to(device)

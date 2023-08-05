@@ -3,7 +3,6 @@ import torch.nn as nn
 import numpy as np
 import tasks.counting_tasks as tasks
 import utils.transformer_utils as utils
-from models.LayerNorm_FFV2_Count import TransformerEncoder, TransformerEncoderLayer
 import torch.optim as optim
 import matplotlib.pyplot as plt
 
@@ -20,7 +19,7 @@ GRID_DIM = 7
 num_epochs = 300000
 test_batch_size = 1000
 device = 'cuda'
-LR = 0.0002     # then 0.0001 for the next 100k, then 0.00002 for the next 100k.
+LR = 0.0002
 num_heads = 1
 train_batch_size = 50
 
@@ -83,11 +82,11 @@ def preprocessTarget(source, target):
 #
 #     return new_target
 
-enc_layer = TransformerEncoderLayer(d_model=EMB_DIM, nhead=num_heads, batch_first=True).to(device).double()
-model = TransformerEncoder(enc_layer, num_layers=1).to(device).double()
+enc_layer = nn.TransformerEncoderLayer(d_model=EMB_DIM, nhead=num_heads, batch_first=True).to(device).double()
+model = nn.TransformerEncoder(enc_layer, num_layers=1).to(device).double()
 
 if RESUME_MODEL:
-    model.load_state_dict(torch.load('LayerNorm-FFV2-Count.pt'))
+    model.load_state_dict(torch.load('Std-Transformer-Count.pt'))
     model = model.double().to(device)
     model.train()
 else:
@@ -162,10 +161,10 @@ if TRAIN_MODEL:
             if mean_loss < best_loss:
                 best_loss = mean_loss
                 print("==> Saving new best model!")
-                torch.save(model.state_dict(), 'LayerNorm-FFV2-Count.pt')
+                torch.save(model.state_dict(), 'Std-Transformer-Count.pt')
 
 else:
-    model.load_state_dict(torch.load('LayerNorm-FFV2-Count.pt'))
+    model.load_state_dict(torch.load('Std-Transformer-Count.pt'))
     model = model.double().to(device)
 
 model.eval()

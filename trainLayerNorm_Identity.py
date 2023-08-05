@@ -1,25 +1,18 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from solvers.models.FFLayerNorm import FFLayerNorm
+from models.FFLayerNorm import FFLayerNorm
 import torch.optim as optim
-
-# TODO: NOTE: with the residual connection, it worked and generalized to "infinity"... that's because all it had to
-#  learn was the null model -- which is easy to obtain with layer norm (all zeros).
-#  Does it mean that my other LayerNorm experiments weren't valid because they weren't using the residual connections???
-
-# Inputs: (flattened) grids with randomized pixel colors.
-# Outputs: [<color token>, <count value>, <color token>, <count value>, etc. (for all non-zeros pixel colors other than background color)]
 
 np.set_printoptions(suppress=True)
 
-RESUME_MODEL = True
+RESUME_MODEL = False
 TRAIN_MODEL = True
 
 train_batch_size = 200
 source_vocab_size = 1  # dimensionality of each source token
 hidden_dim = 10
-num_epochs = 100000
+num_epochs = 200000
 test_batch_size = 1000
 device = 'cuda'
 LR = 0.0001
@@ -34,7 +27,7 @@ def init_weights(m):
 model = FFLayerNorm(EMB_DIM, batch_first=True).to(device).double()
 
 if RESUME_MODEL:
-    model.load_state_dict(torch.load('Identity-model-no-layernormV2.pt'))
+    model.load_state_dict(torch.load('Identity-model-layernorm.pt'))
     model = model.double().to(device)
     model.train()
 else:
@@ -90,8 +83,8 @@ if TRAIN_MODEL:
             if mean_loss < best_loss:
                 best_loss = mean_loss
                 print("==> Saving new best model!")
-                torch.save(model.state_dict(), 'Identity-model-no-layernormV2.pt')
+                torch.save(model.state_dict(), 'Identity-model-layernorm.pt')
 
 else:
-    model.load_state_dict(torch.load('Identity-model-no-layernormV2.pt'))
+    model.load_state_dict(torch.load('Identity-model-layernorm.pt'))
     model = model.double().to(device)
