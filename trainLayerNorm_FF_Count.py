@@ -8,9 +8,6 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Inputs: (flattened) grids with randomized pixel colors.
-# Outputs: [<color token>, <count value>, <color token>, <count value>, etc. (for all non-zeros pixel colors other than background color)]
-
 np.set_printoptions(suppress=True)
 
 RESUME_MODEL = False
@@ -173,27 +170,17 @@ model.eval()
 
 print("Evaluating...")
 
-TEST_GRID_DIM = 12
+TEST_GRID_DIM = 6
 task_instance = current_task[0][0](grid_dim_min=TEST_GRID_DIM, grid_dim_max=TEST_GRID_DIM, num_px_max=1000)
 data_generator = utils.UTTaskDataGenerator(task_instance, input_grid_dim=TEST_GRID_DIM, output_grid_dim=3)
 
 length = TEST_GRID_DIM * TEST_GRID_DIM
 
 accuracies = []
-#for _ in range(10):
 source, target, _, _ = data_generator.get_batch(length, 1000)
 
-print("source = ", source[0].cpu().data.numpy())
-print("target = ", target[0].cpu().data.numpy())
-
-# source = torch.from_numpy(np.array([
-#     [5, 0, 9, 7, 1, 5, 0, 0, 9, 0, 0, 5, 0, 0, 3, 0, 7, 1, 6, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#     [6, 0, 1, 7, 1, 5, 0, 0, 2, 0, 0, 5, 0, 0, 3, 0, 7, 1, 6, 0, 9, 9, 9, 0, 0, 2, 2, 0, 0, 6, 0, 0, 0, 0, 0, 0]
-# ]))
-
-#source = torch.from_numpy(np.array([[8, 0, 2, 0, 2, 4, 5, 9, 8, 0, 2, 1, 3, 2, 2, 7, 7, 5, 8, 2, 4, 2, 8, 4, 2, 6, 4, 6, 2, 2, 0, 5, 7, 9, 9, 5]]))
-
-# NOTE: if hardcoding a source, it's normal that the accuracy will be low, because the target is still randomized!
+# print("source = ", source[0].cpu().data.numpy())
+# print("target = ", target[0].cpu().data.numpy())
 
 with torch.no_grad():
     one_hot_source = one_hot_encode(source)
@@ -246,8 +233,15 @@ with torch.no_grad():
             count_val = np.max(cell_pred)
             count_preds.append(count_val)
 
-    sns.set(font_scale=1.5)
+    sns.set(font_scale=1.8)
     fig, (ax1, ax2) = plt.subplots(1, 2)
+
+    ax1.set_xlim(0, 10)
+    ax1.set_xticks(np.arange(10))
+    ax2.set_xlim(0, 10)
+    ax2.set_xticks(np.arange(10))
+    ax1.set_ylim(0, 0.21)
+    ax2.set_ylim(0, 0.21)
 
     sns.histplot(ax=ax1, data=count_preds, binwidth=1, stat="density")
     ax1.set_title("Distribution of predicted count values")
@@ -258,13 +252,17 @@ with torch.no_grad():
 
     # fig, (ax1, ax2) = plt.subplots(1, 2)
     #
-    # print("mean success stdev = ", np.mean(success_std_preds))
-    # print("mean failure stdev = ", np.mean(failure_std_preds))
+    # ax1.set_xlim(0.0, 0.006)
+    # ax1.set_xticks([0.0, 0.001, 0.002, 0.003, 0.004, 0.005, 0.006])
+    # ax1.set_ylim(0, 1000)
+    # ax2.set_ylim(0, 1000)
+    # ax2.set_xlim(0.0, 0.006)
+    # ax2.set_xticks([0.0, 0.001, 0.002, 0.003, 0.004, 0.005, 0.006])
     #
-    # sns.histplot(ax=ax1, data=success_std_preds, stat="density")
+    # sns.histplot(ax=ax1, data=success_std_preds, binwidth=0.001, stat="density")
     # ax1.set_title("Distribution of stdev for successful preds")
     #
-    # sns.histplot(ax=ax2, data=failure_std_preds, stat="density")
+    # sns.histplot(ax=ax2, data=failure_std_preds, binwidth=0.001, stat="density")
     # ax2.set_title("Distribution of stdev for failure cases")
     # plt.show()
 

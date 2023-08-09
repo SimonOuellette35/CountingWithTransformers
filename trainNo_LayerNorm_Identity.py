@@ -7,7 +7,7 @@ import torch.optim as optim
 np.set_printoptions(suppress=True)
 
 RESUME_MODEL = False
-TRAIN_MODEL = False
+TRAIN_MODEL = True
 
 train_batch_size = 200
 source_vocab_size = 1  # dimensionality of each source token
