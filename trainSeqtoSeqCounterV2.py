@@ -27,6 +27,8 @@ train_batch_size = 50
 
 EMB_DIM = 64
 
+# ================================================== Data generation =================================================
+
 # Only counts non-zero pixels
 class MediumVaryingCountingTask():
     # update this task to reflect output as:
@@ -210,6 +212,8 @@ def batchify_data(data, batch_size=100, padding=False, padding_token=-1):
 
 task_instance = MediumVaryingCountingTask()
 
+# ================================================== Model training =================================================
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = Transformer(num_tokens=vocab_size, dim_model=EMB_DIM, num_heads=num_heads,
                     num_encoder_layers=1, num_decoder_layers=25, dropout_p=0.).to(device)
@@ -297,6 +301,7 @@ else:
     model.load_state_dict(torch.load('FullCounter-transformer.pt'))
     model = model.double().to(device)
 
+# ================================================== Model evaluation =================================================
 model.eval()
 
 def predict(model, input_sequence, max_length=18, SOS_token=10):

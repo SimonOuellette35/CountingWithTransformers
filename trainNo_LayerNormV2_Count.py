@@ -18,14 +18,18 @@ TRAIN_MODEL = False
 
 GRID_DIM = 7
 
-num_epochs = 100000
+num_epochs = 300000
 test_batch_size = 1000
 device = 'cuda'
-LR = 0.00002     # then 0.0001 for the next 100k, then 0.00002 for the next 100k.
+LR = 0.0001
 num_heads = 1
 train_batch_size = 50
 
 EMB_DIM = 10
+
+# ================================================== Data generation =================================================
+
+# This function one-hot encodes a color integer to a 10-dimensional vector.
 def one_hot_encode(x):
     output = torch.zeros((x.shape[0], x.shape[1], 10)).to('cuda')
 
@@ -66,6 +70,8 @@ def preprocessTarget(source, target):
             new_target[b_idx, step_idx, :] = target_vec
 
     return new_target
+
+# ================================================== Model training =================================================
 
 enc_layer = TransformerEncoderLayer(d_model=EMB_DIM, nhead=num_heads, batch_first=True).to(device).double()
 model = TransformerEncoder(enc_layer, num_layers=1).to(device).double()
@@ -152,6 +158,7 @@ else:
     model.load_state_dict(torch.load('No-LayerNormV2-Count.pt'))
     model = model.double().to(device)
 
+# ================================================== Model evaluation =================================================
 model.eval()
 
 print("Evaluating...")

@@ -19,7 +19,7 @@ TRAIN_MODEL = False
 
 GRID_DIM = 7
 
-num_epochs = 200000
+num_epochs = 300000
 test_batch_size = 1000
 device = 'cuda'
 LR = 0.0002
@@ -27,6 +27,10 @@ num_heads = 1
 train_batch_size = 50
 
 EMB_DIM = 10
+
+# ================================================== Data generation =================================================
+
+# This function one-hot encodes a color integer to a 10-dimensional vector.
 def one_hot_encode(x):
     output = torch.zeros((x.shape[0], x.shape[1], 10)).to('cuda')
 
@@ -43,7 +47,6 @@ def init_weights(m):
     for name, param in m.named_parameters():
         nn.init.uniform_(param.data, -0.08, 0.08)
 
-# use the sample generator to generate training and test samples
 current_task = {
     0: [tasks.BasicCountingV3],
     1: [],
@@ -68,6 +71,8 @@ def preprocessTarget(source, target):
 
     return new_target
 
+# ================================================== Model training =================================================
+
 enc_layer = TransformerEncoderLayer(d_model=EMB_DIM, nhead=num_heads, batch_first=True).to(device).double()
 model = TransformerEncoder(enc_layer, num_layers=1).to(device).double()
 
@@ -80,7 +85,6 @@ else:
 
 criterion = nn.MSELoss()
 
-# show training vs. validation loss (MSE) and accuracy
 def single_pred_accuracy(pred, tgt):
     acc = 0.
 
@@ -153,6 +157,7 @@ else:
     model.load_state_dict(torch.load('LayerNorm-SA-Count.pt'))
     model = model.double().to(device)
 
+# ================================================== Model evaluation =================================================
 model.eval()
 
 print("Evaluating...")
@@ -165,9 +170,6 @@ length = TEST_GRID_DIM * TEST_GRID_DIM
 
 accuracies = []
 source, target, _, _ = data_generator.get_batch(length, 1000)
-
-# print("source = ", source[0].cpu().data.numpy())
-# print("target = ", target[0].cpu().data.numpy())
 
 with torch.no_grad():
     one_hot_source = one_hot_encode(source)

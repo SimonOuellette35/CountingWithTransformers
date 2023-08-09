@@ -21,11 +21,15 @@ GRID_DIM = 7
 num_epochs = 300000
 test_batch_size = 1000
 device = 'cuda'
-LR = 0.0002     # then 0.0001 for the next 100k, then 0.00002 for the next 100k.
+LR = 0.0001
 num_heads = 1
 train_batch_size = 50
 
 EMB_DIM = 10
+
+# ================================================== Data generation =================================================
+
+# This function one-hot encodes a color integer to a 10-dimensional vector.
 def one_hot_encode(x):
     output = torch.zeros((x.shape[0], x.shape[1], 10)).to('cuda')
 
@@ -67,6 +71,8 @@ def preprocessTarget(source, target):
 
     return new_target
 
+# ================================================== Model training =================================================
+
 enc_layer = TransformerEncoderLayer(d_model=EMB_DIM, nhead=num_heads, batch_first=True).to(device).double()
 model = TransformerEncoder(enc_layer, num_layers=1).to(device).double()
 
@@ -79,7 +85,6 @@ else:
 
 criterion = nn.MSELoss()
 
-# show training vs. validation loss (MSE) and accuracy
 def single_pred_accuracy(pred, tgt):
     acc = 0.
 
@@ -152,6 +157,7 @@ else:
     model.load_state_dict(torch.load('LayerNorm-FFV2-Count.pt'))
     model = model.double().to(device)
 
+# ================================================== Model evaluation =================================================
 model.eval()
 
 print("Evaluating...")
@@ -163,26 +169,11 @@ data_generator = utils.UTTaskDataGenerator(task_instance, input_grid_dim=TEST_GR
 length = TEST_GRID_DIM * TEST_GRID_DIM
 
 accuracies = []
-#for _ in range(10):
 source, target, _, _ = data_generator.get_batch(length, 1000)
-
-print("source = ", source[0].cpu().data.numpy())
-print("target = ", target[0].cpu().data.numpy())
-
-# source = torch.from_numpy(np.array([
-#     [5, 0, 9, 7, 1, 5, 0, 0, 9, 0, 0, 5, 0, 0, 3, 0, 7, 1, 6, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#     [6, 0, 1, 7, 1, 5, 0, 0, 2, 0, 0, 5, 0, 0, 3, 0, 7, 1, 6, 0, 9, 9, 9, 0, 0, 2, 2, 0, 0, 6, 0, 0, 0, 0, 0, 0]
-# ]))
-
-#source = torch.from_numpy(np.array([[8, 0, 2, 0, 2, 4, 5, 9, 8, 0, 2, 1, 3, 2, 2, 7, 7, 5, 8, 2, 4, 2, 8, 4, 2, 6, 4, 6, 2, 2, 0, 5, 7, 9, 9, 5]]))
-
-# NOTE: if hardcoding a source, it's normal that the accuracy will be low, because the target is still randomized!
 
 with torch.no_grad():
     one_hot_source = one_hot_encode(source)
     target = preprocessTarget(one_hot_source, target)
-
-    print("preprocessed target = ", target[0].cpu().data.numpy())
 
     count_targets = []
     for b_idx in range(target.shape[0]):
@@ -212,14 +203,6 @@ with torch.no_grad():
 
         num_tgts = np.round(np.max(target[b_idx].cpu().data.numpy(), axis=-1))
         print("Count targets = ", num_tgts)
-        #print("Predictions = ", preds[0].cpu().data.numpy())
-
-        # for cell_idx, s in enumerate(tmp_x_std):
-        #     current_preds = np.round(preds[0, cell_idx].cpu().data.numpy())
-        #     if np.all(current_preds == target[b_idx, cell_idx].cpu().data.numpy()):
-        #         success_std_preds.append(s)
-        #     else:
-        #         failure_std_preds.append(s)
 
         acc = single_pred_accuracy(preds[0], target[b_idx])
         print("Accuracy = ", acc)
@@ -228,21 +211,5 @@ with torch.no_grad():
         for cell_pred in preds[0].cpu().data.numpy():
             count_val = np.max(cell_pred)
             count_preds.append(count_val)
-
-    # fig, (ax1, ax2) = plt.subplots(1, 2)
-    # ax1.hist(count_preds)
-    # ax1.set_title("Distribution of predicted count values")
-    #
-    # ax2.hist(count_targets)
-    # ax2.set_title("Distribution of ground truth count values")
-    # plt.show()
-    #
-    # fig, (ax1, ax2) = plt.subplots(1, 2)
-    # ax1.hist(success_std_preds)
-    # ax1.set_title("Distribution of stdev for successful preds")
-    #
-    # ax2.hist(failure_std_preds)
-    # ax2.set_title("Distribution of stdev for failure cases")
-    # plt.show()
 
 print("Mean accuracy = ", np.mean(accuracies))

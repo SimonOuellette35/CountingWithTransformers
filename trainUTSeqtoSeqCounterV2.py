@@ -26,6 +26,8 @@ train_batch_size = 50
 
 EMB_DIM = 64
 
+# ================================================== Data generation =================================================
+
 # Only counts non-zero pixels
 class MediumVaryingCountingTask():
     # update this task to reflect output as:
@@ -166,6 +168,7 @@ class UniversalTransformer(nn.Module):
 
         new_src = source.clone()
 
+        # There is only 1 encoder layer, so we don't need the adaptive computation mechanism here.
         for time_step in range(self.encoding_max_timestep):
             # Add timing signal
             #new_src = new_src + self.enc_position_signal[:, time_step, :].unsqueeze(1).repeat(1, source.shape[1], 1).type_as(source.data)
@@ -211,6 +214,7 @@ class UniversalTransformer(nn.Module):
 
         self.dec_ponder_time = torch.zeros_like(halting_probability)
 
+        # Adaptive computing mechanism. self.dec_halting_layer outputs halting probability.
         for time_step in range(self.decoding_max_timestep):
             new_target = new_target + self.timing_signal[:, :target.shape[1], :].type_as(target.data)
             new_target = new_target + self.dec_position_signal[:, time_step, :].unsqueeze(1).repeat(1, target.shape[1], 1).type_as(target.data)
@@ -293,10 +297,11 @@ def batchify_data(data, batch_size=100, padding=False, padding_token=-1):
 
 task_instance = MediumVaryingCountingTask()
 
+# ================================================== Model training =================================================
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = UniversalTransformer(num_tokens=vocab_size, dim_model=EMB_DIM, num_heads=num_heads,
                              encoding_max_timestep=1, decoding_max_timestep=10, dropout_p=0.).to(device)
-#opt = torch.optim.SGD(model.parameters(), lr=0.00001)
 opt = torch.optim.Adam(model.parameters(), lr=0.001)
 loss_fn = nn.CrossEntropyLoss()
 
@@ -389,6 +394,7 @@ else:
     model.load_state_dict(torch.load('UTFullCounter-transformer.pt'))
     model = model.double().to(device)
 
+# ================================================== Model evaluation =================================================
 model.eval()
 
 def predict(model, input_sequence, max_length=18, SOS_token=10):
