@@ -7,38 +7,6 @@ def generateEmptyGrid(color, dim):
 def getRandomColor(from_array):
     return np.random.choice(from_array)
 
-def generateRandomPixelRows(num_groups=None):
-    random_dim = np.random.choice(np.arange(1, 30))
-    output_grid = generateEmptyGrid(0, random_dim)
-
-    selected_colors = np.arange(1, 10)
-    if num_groups is not None:
-        # select num_groups distinct colors
-        color_choices = list(np.arange(1, 10))
-        random.shuffle(color_choices)
-        selected_colors = color_choices[:num_groups]
-
-    sparsity = np.random.uniform(0.1, 0.5)
-
-    for x in range(random_dim):
-        r = np.random.uniform()
-        if r < sparsity:
-            def drawRow(x, num, color):
-                for i in range(num):
-                    output_grid[x, i] = color
-
-            num = np.random.choice(np.arange(1, random_dim))
-            drawRow(x, num, getRandomColor(selected_colors))
-
-    return output_grid
-
-def decimalToBinary(decValue, dim=16):
-    binValue = np.zeros(dim)
-    tmp_bin_list = [int(x) for x in list('{0:0b}'.format(decValue))]
-    binValue[-len(tmp_bin_list):] = tmp_bin_list
-
-    return binValue
-
 def generateRandomPixels(num_groups=None,
                          max_pixels_per_color=15,
                          max_pixels_total=None,
@@ -112,27 +80,6 @@ def generateRandomPixels(num_groups=None,
 
     return output_grid
 
-def colorCount(input_grid):
-    color_count = {}
-    for x in range(input_grid.shape[0]):
-        for y in range(input_grid.shape[1]):
-            if input_grid[x, y] != 0:
-                if input_grid[x, y] in color_count:
-                    color_count[input_grid[x, y]] += 1
-                else:
-                    color_count[input_grid[x, y]] = 1
-
-    return color_count
-
-def pixelCount(input_grid):
-    pixel_count = 0
-    for x in range(input_grid.shape[0]):
-        for y in range(input_grid.shape[1]):
-            if input_grid[x, y] != 0:
-                pixel_count += 1
-
-    return pixel_count
-
 def perColorPixelCount(input_grid):
     pixel_count = np.zeros(9)
     for x in range(input_grid.shape[0]):
@@ -151,12 +98,3 @@ def perColorPixelCountV2(input_grid):
             pixel_count[idx] += 1
 
     return pixel_count
-
-def colorFillGrid(input_grid, color):
-    output_grid = np.copy(input_grid)
-
-    for x in range(output_grid.shape[0]):
-        for y in range(output_grid.shape[1]):
-            output_grid[x, y] = color
-
-    return output_grid
