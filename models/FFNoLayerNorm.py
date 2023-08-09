@@ -7,6 +7,10 @@ from torch import Tensor
 import math
 import numpy as np
 
+# Code taken from: https://pytorch.org/docs/stable/_modules/torch/nn/modules/transformer.html#TransformerEncoder
+# and modified for the purpose of the experiemnts.
+# This module implements the model used in the experiment: No-LayerNorm-Identity
+
 class FFNoLayerNorm(nn.Module):
 
     __constants__ = ['batch_first', 'norm_first']

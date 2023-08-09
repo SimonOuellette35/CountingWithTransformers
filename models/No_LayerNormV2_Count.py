@@ -7,6 +7,10 @@ from torch import Tensor
 import math
 import numpy as np
 
+# Code taken from: https://pytorch.org/docs/stable/_modules/torch/nn/modules/transformer.html#TransformerEncoder
+# and modified for the purpose of the experiemnts.
+# This module implements the model used in the 2-Layer ReLU experiment (see Appendix E): No-LayerNorm-Count
+
 VERBOSE = True
 class ScaledDotProductAttention(nn.Module):
 
@@ -207,31 +211,6 @@ class TransformerEncoderLayer(nn.Module):
         Shape:
             see the docs in Transformer class.
         """
-        # see Fig. 1 of https://arxiv.org/pdf/2002.04745v1.pdf
-        why_not_sparsity_fast_path = ''
-        if not src.dim() == 3:
-            why_not_sparsity_fast_path = f"input not batched; expected src.dim() of 3 but got {src.dim()}"
-        elif self.training:
-            why_not_sparsity_fast_path = "training is enabled"
-        elif not self.activation_relu_or_gelu:
-            why_not_sparsity_fast_path = "activation_relu_or_gelu was not True"
-        # elif not (self.norm1.eps == self.norm2.eps):
-        #     why_not_sparsity_fast_path = "norm1.eps is not equal to norm2.eps"
-        elif src.is_nested and (src_key_padding_mask is not None or src_mask is not None):
-            why_not_sparsity_fast_path = "neither src_key_padding_mask nor src_mask are not supported with NestedTensor input"
-        elif torch.is_autocast_enabled():
-            why_not_sparsity_fast_path = "autocast is enabled"
-
-            # # We have to use list comprehensions below because TorchScript does not support
-            # # generator expressions.
-            # if torch.overrides.has_torch_function(tensor_args):
-            #     why_not_sparsity_fast_path = "some Tensor argument has_torch_function"
-            # elif not all((x.is_cuda or 'cpu' in str(x.device)) for x in tensor_args):
-            #     why_not_sparsity_fast_path = "some Tensor argument is neither CUDA nor CPU"
-            # elif torch.is_grad_enabled() and any(x.requires_grad for x in tensor_args):
-            #     why_not_sparsity_fast_path = ("grad is enabled and at least one of query or the "
-            #                                   "input/output projection weights or biases requires_grad")
-
         x = src
         x = self._sa_block(x, src_mask, src_key_padding_mask)
         x = self._ff_block(x)

@@ -8,8 +8,9 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Inputs: (flattened) grids with randomized pixel colors.
-# Outputs: [<color token>, <count value>, <color token>, <count value>, etc. (for all non-zeros pixel colors other than background color)]
+# This is the training script for experiment LayerNorm-SA-Count.
+# Set TRAIN_MODEL to True to train the model, and False to evaluate a pre-trained model.
+# RESUME_MODEL can be set to True to resume training from a previous training session.
 
 np.set_printoptions(suppress=True)
 
@@ -18,8 +19,6 @@ TRAIN_MODEL = False
 
 GRID_DIM = 7
 
-#source_vocab_size = 1  # dimensionality of each source token
-#hidden_dim = 10
 num_epochs = 200000
 test_batch_size = 1000
 device = 'cuda'
@@ -68,23 +67,6 @@ def preprocessTarget(source, target):
             new_target[b_idx, step_idx, :] = target_vec
 
     return new_target
-
-# def preprocessTarget(source, target):
-#     # for each token in the source sequence, fetch the corresponding target count and place it at the corresponding
-#     # color index in a 10-dim array (the rest being zeros).
-#     # Predictions will have shape: [batch_size, sequence_length, 10]
-#     # Target will have shape: [batch_size, sequence_length, 10]
-#
-#     new_target = torch.zeros((source.shape[0], source.shape[1], EMB_DIM)).to(device)
-#     for b_idx in range(source.shape[0]):
-#         for step_idx in range(source.shape[1]):
-#             color_idx = int(torch.argmax(source[b_idx, step_idx]).cpu().data.numpy())
-#             target_vec = torch.zeros(10)
-#             target_vec[color_idx] = target[b_idx, color_idx]
-#
-#             new_target[b_idx, step_idx, :10] = target_vec
-#
-#     return new_target
 
 enc_layer = TransformerEncoderLayer(d_model=EMB_DIM, nhead=num_heads, batch_first=True).to(device).double()
 model = TransformerEncoder(enc_layer, num_layers=1).to(device).double()

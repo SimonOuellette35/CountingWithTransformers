@@ -6,11 +6,17 @@ import utils.grid_utils as grid_utils
 import math
 
 # Based on: https://towardsdatascience.com/a-detailed-guide-to-pytorchs-nn-transformer-module-c80afbc9ffb1
+# Reference paper: "Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., ... & Polosukhin, I.
+# (2017). Attention is all you need. Advances in neural information processing systems, 30."
+
+# This is the training script for experiment Full-Transformer-CountV2.
+# Set TRAIN_MODEL to True to train the model, and False to evaluate a pre-trained model.
+# RESUME_MODEL can be set to True to resume training from a previous training session.
 
 np.set_printoptions(suppress=True)
 
 RESUME_MODEL = False
-TRAIN_MODEL = False
+TRAIN_MODEL = True
 
 NUM_EPOCHS = 10000
 vocab_size = 12      # 10 digits + EOW + EOS
@@ -20,184 +26,6 @@ num_heads = 1
 train_batch_size = 50
 
 EMB_DIM = 64
-
-# use the sample generator to generate training and test samples
-class TestTask():
-    def __init__(self, padding=False):
-        self.padding=padding
-
-    def generateInputs(self, batch_size):
-        choice_array = np.arange(5)
-        input = np.random.choice(choice_array, (batch_size, 5))
-
-        return input
-
-    def generateOutputs(self, inputs):
-        if self.padding:
-            outputs = np.zeros((inputs.shape[0], 10)) + 10
-
-            for i in range(inputs.shape[1]):
-                outputs[:, i*2] = inputs[:, i] + 1
-
-            return outputs
-        else:
-            return inputs + 1
-
-class HardCountingTask():
-    # update this task to reflect output as:
-    #  [count 0 digit 1, count 0 digit 2, ..., <end of word>, count 1 digit 1, count 2 digit 2, ..., <end of word>, etc.]
-    def __init__(self, grid_dim_min=3, grid_dim_max=30, num_px_min=1, num_px_max=10):
-        self.num_px_min = num_px_min
-        self.num_px_max = num_px_max
-        self.grid_dim_min = grid_dim_min
-        self.grid_dim_max = grid_dim_max
-
-    def generateInputs(self, k):
-        input_grids = []
-        for _ in range(k):
-            num_px = np.random.choice(np.arange(self.num_px_min, self.num_px_max))
-            tmp_grid = self._generateInput(num_px)
-            input_grids.append(tmp_grid)
-
-        random.shuffle(input_grids)
-        return input_grids
-
-    def _generateInput(self, mpt):
-        return grid_utils.generateRandomPixels(max_pixels_total=mpt,
-                                               max_pixels_per_color=self.num_px_max,
-                                               grid_dim_min=self.grid_dim_min,
-                                               grid_dim_max=self.grid_dim_max,
-                                               sparsity=0.8)
-
-    def _generateOutput(self, input_grid):
-        pixel_count = grid_utils.perColorPixelCountV2(input_grid)
-        pixel_seq = []
-        for pxc in pixel_count:
-            str_count = "%i" % pxc
-            for char in str_count:
-                pixel_seq.append(char)
-
-            pixel_seq.append(" ")   # end of word token
-
-        # add an EOS token
-        pixel_seq.append("#")
-
-        return np.array(pixel_seq)
-
-    def generateOutputs(self, input_grids):
-        output_grids = []
-
-        def pad_sequence(seq, max_len):
-            seq_len = len(seq)
-
-            padding_seq = []
-            for _ in range(seq_len, max_len):
-                padding_seq.append("_")
-
-            return np.concatenate((seq, np.array(padding_seq)))
-
-        for input_grid in input_grids:
-            output_grids.append(self._generateOutput(input_grid))
-
-        max_len = 0
-        for output_grid in output_grids:
-            if len(output_grid) > max_len:
-                max_len = len(output_grid)
-
-        padded_outputs = []
-        for output_grid in output_grids:
-            padded_outputs.append(pad_sequence(output_grid, max_len))
-
-        return np.array(padded_outputs)
-
-class EasyCountingTask():
-    # update this task to reflect output as:
-    #  [count 0 digit 1, count 0 digit 2, ..., <end of word>, count 1 digit 1, count 2 digit 2, ..., <end of word>, etc.]
-    def __init__(self, num_px=10, grid_dim=4):
-        self.num_px = num_px
-        self.grid_dim = grid_dim
-
-    def generateInputs(self, k):
-        input_grids = []
-        for _ in range(k):
-            tmp_grid = self._generateInput(self.num_px)
-            input_grids.append(tmp_grid)
-
-        random.shuffle(input_grids)
-        return input_grids
-
-    def _generateInput(self, mpt):
-        return grid_utils.generateRandomPixels(max_pixels_total=mpt,
-                                               max_pixels_per_color=self.num_px,
-                                               grid_dim_min=self.grid_dim,
-                                               grid_dim_max=self.grid_dim,
-                                               sparsity=0.8)
-
-    def _generateOutput(self, input_grid):
-        pixel_count = grid_utils.perColorPixelCountV2(input_grid)
-        pixel_seq = np.zeros(10)
-        idx = 0
-        for pxc in pixel_count:
-            str_count = "%i" % pxc
-            pixel_seq[idx] = str_count
-            idx += 1
-
-        return pixel_seq
-
-    def generateOutputs(self, input_grids):
-        output_grids = []
-
-        for input_grid in input_grids:
-            output_grids.append(self._generateOutput(input_grid))
-
-        return np.array(output_grids)
-
-# Only counts non-zero pixels
-class MediumCountingTask():
-    # update this task to reflect output as:
-    #  [count 0 digit 1, count 0 digit 2, ..., <end of word>, count 1 digit 1, count 2 digit 2, ..., <end of word>, etc.]
-    def __init__(self, num_px=99, grid_dim=25):
-        self.num_px = num_px
-        self.grid_dim = grid_dim
-
-    def generateInputs(self, k):
-        input_grids = []
-        for _ in range(k):
-            tmp_grid = self._generateInput(self.grid_dim * self.grid_dim)
-            input_grids.append(tmp_grid)
-
-        random.shuffle(input_grids)
-        return input_grids
-
-    def _generateInput(self, mpt):
-        return grid_utils.generateRandomPixels(max_pixels_total=mpt,
-                                               max_pixels_per_color=self.num_px,
-                                               grid_dim_min=self.grid_dim,
-                                               grid_dim_max=self.grid_dim,
-                                               sparsity=1.)
-
-    def _generateOutput(self, input_grid):
-        pixel_count = grid_utils.perColorPixelCountV2(input_grid)[1:]
-        pixel_seq = []
-
-        for pxc in pixel_count:
-            if pxc < 10:
-                str_count = "0%i" % pxc
-            else:
-                str_count = "%i" % pxc
-
-            for char in str_count:
-                pixel_seq.append(int(char))
-
-        return np.array(pixel_seq)
-
-    def generateOutputs(self, input_grids):
-        output_grids = []
-
-        for input_grid in input_grids:
-            output_grids.append(self._generateOutput(input_grid))
-
-        return np.array(output_grids)
 
 # Only counts non-zero pixels
 class MediumVaryingCountingTask():
@@ -325,18 +153,11 @@ class Transformer(nn.Module):
         return out
 
     def get_tgt_mask(self, size) -> torch.tensor:
-        # Generates a squeare matrix where each row allows one word more to be seen
+        # Generates a square matrix where each row allows one word more to be seen
         mask = torch.tril(torch.ones(size, size) == 1)  # Lower triangular matrix
         mask = mask.float()
         mask = mask.masked_fill(mask == 0, float('-inf'))  # Convert zeros to -inf
         mask = mask.masked_fill(mask == 1, float(0.0))  # Convert ones to 0
-
-        # EX for size=5:
-        # [[0., -inf, -inf, -inf, -inf],
-        #  [0.,   0., -inf, -inf, -inf],
-        #  [0.,   0.,   0., -inf, -inf],
-        #  [0.,   0.,   0.,   0., -inf],
-        #  [0.,   0.,   0.,   0.,   0.]]
 
         return mask
 
@@ -385,8 +206,6 @@ def batchify_data(data, batch_size=100, padding=False, padding_token=-1):
 
             batches.append(data[idx : idx + batch_size])
 
-    #print(f"{len(batches)} batches of size {batch_size}")
-
     return batches
 
 task_instance = MediumVaryingCountingTask()
@@ -416,10 +235,6 @@ def train_loop(model, opt, loss_fn):
         for b_idx in range(len(batch)):
             X.append(batch[b_idx][0])
             y.append(batch[b_idx][1])
-
-            # if b_idx == 0:
-            #     print("X = ", batch[b_idx][0])
-            #     print("y = ", batch[b_idx][1])
 
         X = np.array(X)
         y = np.array(y)
@@ -471,7 +286,7 @@ def fit(model, opt, loss_fn, epochs):
             if mean_loss < best_loss:
                 best_loss = mean_loss
                 print("==> Saving new best model!")
-                torch.save(model.state_dict(), 'UTFullCounter-transformer.pt')
+                torch.save(model.state_dict(), 'FullCounter-transformer.pt')
 
     return train_loss_list
 
@@ -479,7 +294,7 @@ if TRAIN_MODEL:
     train_loss_list = fit(model, opt, loss_fn, NUM_EPOCHS)
 else:
     # load model
-    model.load_state_dict(torch.load('UTFullCounter-transformer.pt'))
+    model.load_state_dict(torch.load('FullCounter-transformer.pt'))
     model = model.double().to(device)
 
 model.eval()

@@ -4,19 +4,14 @@ import numpy as np
 import random
 import utils.grid_utils as grid_utils
 import math
-import torch.nn.functional as F
 
 # Based on: https://github.com/iibrahimli/universal_transformers/
+# Paper reference: "Dehghani, M., Gouws, S., Vinyals, O., Uszkoreit, J., & Kaiser, Ł. (2018).
+# Universal transformers. arXiv preprint arXiv:1807.03819."
 
-#  4) Try adding positional encoding to the encoder side input as well
-#  5) Try intermediate supervision: at each time step, must return the number of instnaces up to that
-#   time step (== cell in the memory grid)
-#  6) halting is done based on the state -- does that or can that include the current value of the memory cell that
-#  was attended to (i.e. the SOS token?)? Also, what is the mechanism to increment the positional encoding to attend to
-#  from iteration to iteration of the same decoding layer?
-#   a) Implement a barebones, simplistic version of the decoder algorithm to count iteratively. Does it work?
-#   b) Then, take that and make it iterative with ACT as in the UT?
-#  7) Try learning only the modulo 10?
+# This is the training script for experiment Universal-Transformer-CountV2.
+# Set TRAIN_MODEL to True to train the model, and False to evaluate a pre-trained model.
+# RESUME_MODEL can be set to True to resume training from a previous training session.
 
 np.set_printoptions(suppress=True)
 
@@ -30,53 +25,6 @@ num_heads = 1
 train_batch_size = 50
 
 EMB_DIM = 64
-
-# Only counts non-zero pixels
-class MediumCountingTask():
-    # update this task to reflect output as:
-    #  [count 0 digit 1, count 0 digit 2, ..., <end of word>, count 1 digit 1, count 2 digit 2, ..., <end of word>, etc.]
-    def __init__(self, num_px=99, grid_dim=6):
-        self.num_px = num_px
-        self.grid_dim = grid_dim
-
-    def generateInputs(self, k):
-        input_grids = []
-        for _ in range(k):
-            tmp_grid = self._generateInput(self.grid_dim * self.grid_dim)
-            input_grids.append(tmp_grid)
-
-        random.shuffle(input_grids)
-        return input_grids
-
-    def _generateInput(self, mpt):
-        return grid_utils.generateRandomPixels(max_pixels_total=mpt,
-                                               max_pixels_per_color=self.num_px,
-                                               grid_dim_min=self.grid_dim,
-                                               grid_dim_max=self.grid_dim,
-                                               sparsity=1.)
-
-    def _generateOutput(self, input_grid):
-        pixel_count = grid_utils.perColorPixelCountV2(input_grid)[1:]
-        pixel_seq = []
-
-        for pxc in pixel_count:
-            if pxc < 10:
-                str_count = "0%i" % pxc
-            else:
-                str_count = "%i" % pxc
-
-            for char in str_count:
-                pixel_seq.append(int(char))
-
-        return np.array(pixel_seq)
-
-    def generateOutputs(self, input_grids):
-        output_grids = []
-
-        for input_grid in input_grids:
-            output_grids.append(self._generateOutput(input_grid))
-
-        return np.array(output_grids)
 
 # Only counts non-zero pixels
 class MediumVaryingCountingTask():
@@ -160,10 +108,8 @@ class UniversalTransformer(nn.Module):
         self.embedding = nn.Embedding(num_tokens, dim_model)
         self.encoder_layer = nn.TransformerEncoderLayer(dim_model, num_heads, activation=nn.GELU(), batch_first=True)
         self.decoder_layer = nn.TransformerDecoderLayer(dim_model, num_heads, activation=nn.GELU(), batch_first=True)
-        self.enc_halting_layer1 = nn.Linear(dim_model, 2048)
-        self.enc_halting_layer2 = nn.Linear(2048, 1)
-        self.dec_halting_layer1 = nn.Linear(dim_model, 2048)
-        self.dec_halting_layer2 = nn.Linear(2048, 1)
+        self.enc_halting_layer = nn.Linear(dim_model, 1)
+        self.dec_halting_layer = nn.Linear(dim_model, 1)
 
         self.out = nn.Linear(dim_model, num_tokens)
 
@@ -258,53 +204,33 @@ class UniversalTransformer(nn.Module):
         Returns:
             Has shape [batch_size, tgt_seq_len, embedding_dim]
         """
-        running_probability = torch.ones((*target.shape[:-1], 1), device=device)
-        remainders = torch.zeros_like(running_probability)
-        still_running = torch.ones_like(running_probability)
+        halting_probability = torch.zeros((*target.shape[:-1], 1), device=target.device)
+        remainders = torch.zeros_like(halting_probability)
+        n_updates = torch.zeros_like(halting_probability)
         new_target = target.clone()
 
-        self.dec_ponder_time = torch.zeros_like(running_probability)
-
-        # for time_step in range(self.decoding_max_timestep):
-        #     # Add timing signal
-        #     new_target = new_target + self.timing_signal[:, :target.shape[1], :].type_as(target.data)
-        #     new_target = new_target + self.dec_position_signal[:, time_step, :].unsqueeze(1).repeat(1, target.shape[1], 1).type_as(target.data)
-        #
-        #     still_running = halting_probability < self.halting_thresh
-        #     p = self.halting_layer(new_target)
-        #     new_halted = (halting_probability + p * still_running) > self.halting_thresh
-        #     still_running = (halting_probability + p * still_running) <= self.halting_thresh
-        #     halting_probability += p * still_running
-        #     remainders += new_halted * (1 - halting_probability)
-        #     halting_probability += new_halted * remainders
-        #     n_updates += still_running + new_halted
-        #     update_weights = p * still_running + new_halted * remainders
-        #     new_target = self.decoder_layer(new_target, memory, tgt_mask=tgt_mask)
-        #     target = (new_target * update_weights) + (target * (1 - update_weights))
-        #
-        #     # update counter
-        #     self.dec_ponder_time[~new_halted] += 1
+        self.dec_ponder_time = torch.zeros_like(halting_probability)
 
         for time_step in range(self.decoding_max_timestep):
-            # Add timing signal
             new_target = new_target + self.timing_signal[:, :target.shape[1], :].type_as(target.data)
-            #new_target = new_target + self.dec_position_signal[:, time_step, :].unsqueeze(1).repeat(1, target.shape[1], 1).type_as(target.data)
+            new_target = new_target + self.dec_position_signal[:, time_step, :].unsqueeze(1).repeat(1, target.shape[1], 1).type_as(target.data)
 
-            #tmp_target = self.dec_halting_layer1(new_target)
-            #p = F.sigmoid(self.dec_halting_layer2(F.relu(tmp_target)))
-
-            #running_probability = p * still_running
-            #still_running = running_probability > (1 - self.halting_thresh)
-            #new_halted = running_probability < (1 - self.halting_thresh)
-
-            #update_weights = still_running * running_probability
+            still_running = halting_probability < self.halting_thresh
+            p = self.dec_halting_layer(new_target)
+            new_halted = (halting_probability + p * still_running) > self.halting_thresh
+            still_running = (
+                halting_probability + p * still_running
+            ) <= self.halting_thresh
+            halting_probability += p * still_running
+            remainders += new_halted * (1 - halting_probability)
+            halting_probability += new_halted * remainders
+            n_updates += still_running + new_halted
+            update_weights = p * still_running + new_halted * remainders
             new_target = self.decoder_layer(new_target, memory, tgt_mask=tgt_mask)
-
-            target = new_target + target
+            target = (new_target * update_weights) + (target * (1 - update_weights))
 
             # update counter
-            #self.dec_ponder_time[~new_halted] += 1
-
+            self.dec_ponder_time[~new_halted] += 1
         return target
 
     def get_tgt_mask(self, size) -> torch.tensor:
@@ -313,13 +239,6 @@ class UniversalTransformer(nn.Module):
         mask = mask.float()
         mask = mask.masked_fill(mask == 0, float('-inf'))  # Convert zeros to -inf
         mask = mask.masked_fill(mask == 1, float(0.0))  # Convert ones to 0
-
-        # EX for size=5:
-        # [[0., -inf, -inf, -inf, -inf],
-        #  [0.,   0., -inf, -inf, -inf],
-        #  [0.,   0.,   0., -inf, -inf],
-        #  [0.,   0.,   0.,   0., -inf],
-        #  [0.,   0.,   0.,   0.,   0.]]
 
         return mask
 
@@ -546,24 +465,3 @@ for idx, example in enumerate(X):
 
 total_accuracy /= len(X)
 print("Total accuracy = ", total_accuracy)
-
-# # Now we shift the tgt by one so with the <SOS> we predict the token at pos 1
-# # Get mask to mask out the next words
-# sequence_length = y_input.size(1)
-# tgt_mask = model.get_tgt_mask(sequence_length).to(device).double()
-#
-# # Standard training except we pass in y_input and tgt_mask
-# pred = model(X, y_input, tgt_mask)
-#
-# # Permute pred to have batch size first again
-# loss = loss_fn(pred, y_expected)
-#
-# # pred shape = [batch_size, vocab_size, seq_length=19 rather than 18!]
-# # y_expected shape = [batch_size, 19 instead of 18!]
-# print("pred shape = ", pred.shape)
-# print("y expected shape = ", y_expected.shape)
-#
-# print("pred = ", pred.cpu().data.numpy())
-# print("y expected = ", y_expected.cpu().data.numpy())
-#
-# print("loss = ", loss.cpu().data.numpy())

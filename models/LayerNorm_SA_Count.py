@@ -7,6 +7,10 @@ from torch import Tensor
 import math
 import numpy as np
 
+# Code taken from: https://pytorch.org/docs/stable/_modules/torch/nn/modules/transformer.html#TransformerEncoder
+# and modified for the purpose of the experiemnts.
+# This module implements the model used in the experiment: LayerNorm-SA-Count
+
 VERBOSE = True
 class ScaledDotProductAttention(nn.Module):
 

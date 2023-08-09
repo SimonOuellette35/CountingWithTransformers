@@ -1,16 +1,12 @@
 import numpy as np
 import random
 
-# A "grid" is a rectangular matrix (list of lists) of integers between 0 and 9 (inclusive).
-# The smallest possible grid size is 1x1 and the largest is 30x30.
-
 def generateEmptyGrid(color, dim):
     return np.ones((dim, dim)) * color
 
 def getRandomColor(from_array):
     return np.random.choice(from_array)
 
-# NOTE: this is actually an objectness task: a row (line) is a dense grouping of pixels.
 def generateRandomPixelRows(num_groups=None):
     random_dim = np.random.choice(np.arange(1, 30))
     output_grid = generateEmptyGrid(0, random_dim)

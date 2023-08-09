@@ -4,6 +4,10 @@ import numpy as np
 from models.FFNoLayerNorm import FFNoLayerNorm
 import torch.optim as optim
 
+# This is the training script for experiment No-LayerNorm-Identity.
+# Set TRAIN_MODEL to True to train the model, and False to evaluate a pre-trained model.
+# RESUME_MODEL can be set to True to resume training from a previous training session.
+
 np.set_printoptions(suppress=True)
 
 RESUME_MODEL = False

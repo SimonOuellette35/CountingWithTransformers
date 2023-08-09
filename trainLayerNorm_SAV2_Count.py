@@ -7,8 +7,9 @@ from models.LayerNorm_SAV2_Count import TransformerEncoder, TransformerEncoderLa
 import torch.optim as optim
 import matplotlib.pyplot as plt
 
-# Inputs: (flattened) grids with randomized pixel colors.
-# Outputs: [<color token>, <count value>, <color token>, <count value>, etc. (for all non-zeros pixel colors other than background color)]
+# This is the training script for the 2-layer ReLU experiment (Appendix E) LayerNorm-SA-Count.
+# Set TRAIN_MODEL to True to train the model, and False to evaluate a pre-trained model.
+# RESUME_MODEL can be set to True to resume training from a previous training session.
 
 np.set_printoptions(suppress=True)
 
@@ -17,8 +18,6 @@ TRAIN_MODEL = False
 
 GRID_DIM = 7
 
-#source_vocab_size = 1  # dimensionality of each source token
-#hidden_dim = 10
 num_epochs = 100000
 test_batch_size = 1000
 device = 'cuda'
@@ -67,23 +66,6 @@ def preprocessTarget(source, target):
             new_target[b_idx, step_idx, :] = target_vec
 
     return new_target
-
-# def preprocessTarget(source, target):
-#     # for each token in the source sequence, fetch the corresponding target count and place it at the corresponding
-#     # color index in a 10-dim array (the rest being zeros).
-#     # Predictions will have shape: [batch_size, sequence_length, 10]
-#     # Target will have shape: [batch_size, sequence_length, 10]
-#
-#     new_target = torch.zeros((source.shape[0], source.shape[1], EMB_DIM)).to(device)
-#     for b_idx in range(source.shape[0]):
-#         for step_idx in range(source.shape[1]):
-#             color_idx = int(torch.argmax(source[b_idx, step_idx]).cpu().data.numpy())
-#             target_vec = torch.zeros(10)
-#             target_vec[color_idx] = target[b_idx, color_idx]
-#
-#             new_target[b_idx, step_idx, :10] = target_vec
-#
-#     return new_target
 
 enc_layer = TransformerEncoderLayer(d_model=EMB_DIM, nhead=num_heads, batch_first=True).to(device).double()
 model = TransformerEncoder(enc_layer, num_layers=1).to(device).double()
@@ -181,26 +163,11 @@ data_generator = utils.UTTaskDataGenerator(task_instance, input_grid_dim=TEST_GR
 length = TEST_GRID_DIM * TEST_GRID_DIM
 
 accuracies = []
-#for _ in range(10):
 source, target, _, _ = data_generator.get_batch(length, 1000)
-
-print("source = ", source[0].cpu().data.numpy())
-print("target = ", target[0].cpu().data.numpy())
-
-# source = torch.from_numpy(np.array([
-#     [5, 0, 9, 7, 1, 5, 0, 0, 9, 0, 0, 5, 0, 0, 3, 0, 7, 1, 6, 0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-#     [6, 0, 1, 7, 1, 5, 0, 0, 2, 0, 0, 5, 0, 0, 3, 0, 7, 1, 6, 0, 9, 9, 9, 0, 0, 2, 2, 0, 0, 6, 0, 0, 0, 0, 0, 0]
-# ]))
-
-#source = torch.from_numpy(np.array([[8, 0, 2, 0, 2, 4, 5, 9, 8, 0, 2, 1, 3, 2, 2, 7, 7, 5, 8, 2, 4, 2, 8, 4, 2, 6, 4, 6, 2, 2, 0, 5, 7, 9, 9, 5]]))
-
-# NOTE: if hardcoding a source, it's normal that the accuracy will be low, because the target is still randomized!
 
 with torch.no_grad():
     one_hot_source = one_hot_encode(source)
     target = preprocessTarget(one_hot_source, target)
-
-    print("preprocessed target = ", target[0].cpu().data.numpy())
 
     count_targets = []
     for b_idx in range(target.shape[0]):
@@ -230,14 +197,6 @@ with torch.no_grad():
 
         num_tgts = np.round(np.max(target[b_idx].cpu().data.numpy(), axis=-1))
         print("Count targets = ", num_tgts)
-        #print("Predictions = ", preds[0].cpu().data.numpy())
-
-        # for cell_idx, s in enumerate(tmp_x_std):
-        #     current_preds = np.round(preds[0, cell_idx].cpu().data.numpy())
-        #     if np.all(current_preds == target[b_idx, cell_idx].cpu().data.numpy()):
-        #         success_std_preds.append(s)
-        #     else:
-        #         failure_std_preds.append(s)
 
         acc = single_pred_accuracy(preds[0], target[b_idx])
         print("Accuracy = ", acc)
@@ -246,23 +205,5 @@ with torch.no_grad():
         for cell_pred in preds[0].cpu().data.numpy():
             count_val = np.max(cell_pred)
             count_preds.append(count_val)
-
-    # TODO: use seaborn, improve the histograms
-    # TODO: filter out the zero count in the histograms
-    fig, (ax1, ax2) = plt.subplots(1, 2)
-    ax1.hist(count_preds)
-    ax1.set_title("Distribution of predicted count values")
-
-    ax2.hist(count_targets)
-    ax2.set_title("Distribution of ground truth count values")
-    plt.show()
-
-    fig, (ax1, ax2) = plt.subplots(1, 2)
-    ax1.hist(success_std_preds)
-    ax1.set_title("Distribution of stdev for successful preds")
-
-    ax2.hist(failure_std_preds)
-    ax2.set_title("Distribution of stdev for failure cases")
-    plt.show()
 
 print("Mean accuracy = ", np.mean(accuracies))

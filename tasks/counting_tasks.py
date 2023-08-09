@@ -3,6 +3,8 @@ import utils.grid_utils as grid_utils
 import numpy as np
 import random
 
+# This is the data generating code for the counting task, in conjunction with the preprocessTarget function in the
+# appropriate training scripts.
 class BasicCountingV3(Task):
 
     def __init__(self, grid_dim_min=3, grid_dim_max=30, num_px_min=1, num_px_max=10):
@@ -32,6 +34,8 @@ class BasicCountingV3(Task):
         grid_px_count = np.reshape(pixel_count, [3, 3])
         return grid_px_count
 
+# This is the data generating code for the modified counting task (CountV2), in conjunction with the generate_random_data
+# function in the scripts trainUTSeqToSeqCounterV2.py and trainSeqToSeqCounterV2.py.
 class BasicCountingV4(Task):
 
     def __init__(self, grid_dim_min=3, grid_dim_max=30, num_px_min=1, num_px_max=10):
